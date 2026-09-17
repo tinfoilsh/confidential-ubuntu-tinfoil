@@ -1,6 +1,6 @@
 cvm-version: 0.14.8
-cpus: 120
-memory: 1048576
+cpus: 2
+memory: 8192
 gpus: 8
 
 networks:
@@ -27,8 +27,7 @@ containers:
 
     env:
       - SSH_KEYS: |-
-          ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIKcW8gy3qDjGP3iBIggbIeiUl47+tm3zwWcCi0ww/QZG
-          ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIHqerhhrFex4XpSs4atO8I/I6G2TfhmWZOeK7SPuGhuP
+          ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIDwPRs3ZguLD3xFvAdtQqjeRsUP9jCJ/6JXN9ruPJEhr cardno:22_545_924
 
     tmpfs:
       /run: "rw,nosuid,nodev,mode=755"

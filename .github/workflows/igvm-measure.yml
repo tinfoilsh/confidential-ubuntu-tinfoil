@@ -65,7 +65,15 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
+          # --latest=false is not enough on its own: a repository whose latest
+          # release is latest-by-date rather than explicitly pinned will
+          # promote whatever is newest. Remember what it was and put it back.
+          previous="$(gh release view --json tagName -q .tagName 2>/dev/null || true)"
           gh release create "$GITHUB_REF_NAME" --verify-tag --latest=false \
             --title "$GITHUB_REF_NAME" \
             --notes "boot-shim measured deployment for CVM image v${CVM_VERSION}. Not a workspace release, and not marked latest." \
             tinfoil-deployment.json tinfoil.hash
+          if [ -n "$previous" ] && [ "$previous" != "$GITHUB_REF_NAME" ]; then
+            gh release edit "$previous" --latest
+            echo "restored $previous as the repository's latest release"
+          fi

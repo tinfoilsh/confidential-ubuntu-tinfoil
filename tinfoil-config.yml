@@ -1,41 +1,23 @@
-cvm-version: 0.14.8
+# Minimal workload for the boot-shim client-verification test. Nothing here is
+# exercised beyond booting far enough to serve attestation, so the container is
+# a static file server rather than the workspace image this repo normally ships.
+cvm-version: 0.14.4
 cpus: 2
-memory: 8192
-
-networks:
-  dev:
-    egress: open
-
-volumes:
-  - name: workspace
-    exec: true
-
-containers:
-  - name: "workspace"
-    image: "ghcr.io/tinfoilsh/confidential-ubuntu-tinfoil-test@sha256:0000000000000000000000000000000000000000000000000000000000000000" # rewritten at release
-    restart: on-failure
-    cvm_admin: true
-    stop_signal: SIGRTMIN+3
-    stop_timeout: 120
-    networks: [dev]
-    volumes: [workspace:/mnt/disk]
-
-    ports: ["22:22"]
-
-    env:
-      - SSH_KEYS: |-
-          ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIDwPRs3ZguLD3xFvAdtQqjeRsUP9jCJ/6JXN9ruPJEhr cardno:22_545_924
-
-    tmpfs:
-      /run: "rw,nosuid,nodev,mode=755"
-
-    healthcheck:
-      test: ["CMD", "/healthcheck.sh"]
-      interval: 5s
-      timeout: 5s
-      retries: 12
-      start_period: 30s
+memory: 4096
 
 shim:
-  upstream-port: 22
-  authenticated: false
+  upstream-port: 8080
+  tls-mode: self-signed
+
+containers:
+  - name: "upstream"
+    image: "docker.io/library/busybox@sha256:1cfa4e2b09e127b9c4ed43578d3f3c18e7d44ea47b9ea98475c0cbe9086525f8"
+    restart: always
+    tmpfs:
+      /srv: "size=64k,mode=0755"
+    command:
+      - /bin/sh
+      - -c
+      - |
+        printf 'igvm-boot-OK\n' > /srv/marker
+        exec httpd -f -p 0.0.0.0:8080 -h /srv

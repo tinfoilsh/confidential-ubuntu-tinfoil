@@ -1,0 +1,71 @@
+# Publishes a deployment measured by boot-shim rather than by firmware, so a
+# client has something Sigstore-attested to verify an IGVM-booted guest
+# against. Deliberately minimal: it produces the same numbers the measurement
+# action would, without depending on a container release of it.
+#
+# Releases are never marked latest, so this does not change what the rest of
+# the repository publishes.
+name: igvm-measure
+on:
+  push:
+    tags:
+      - "v*-dev"
+
+permissions:
+  contents: write # create the release
+  id-token: write # keyless signing
+  attestations: write # publish the provenance
+
+env:
+  BOOT_SHIM_VERSION: v0.1.0
+  BOOT_SHIM_SHA256: acedc9df0c116e860418b52da8c186412017d420430c881e81f0365319108fb2
+
+jobs:
+  measure:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Fetch the builder
+        run: |
+          set -euo pipefail
+          curl --fail --proto '=https' -L -o boot-shim \
+            "https://github.com/tinfoilsh/boot-shim/releases/download/${BOOT_SHIM_VERSION}/boot-shim"
+          echo "${BOOT_SHIM_SHA256}  boot-shim" | sha256sum -c -
+          chmod +x boot-shim
+
+      - name: Fetch the guest image
+        run: |
+          set -euo pipefail
+          version="$(sed -n 's/^cvm-version: *//p' tinfoil-config.yml | tr -d '"')"
+          echo "CVM_VERSION=$version" >> "$GITHUB_ENV"
+          curl --fail --proto '=https' -L -o manifest.json \
+            "https://github.com/tinfoilsh/cvmimage/releases/download/v$version/tinfoil-inference-v$version-manifest.json"
+          curl --fail --proto '=https' -L -o vmlinuz \
+            "https://images.tinfoil.sh/cvm/tinfoil-inference-v$version.vmlinuz"
+          curl --fail --proto '=https' -L -o initrd \
+            "https://images.tinfoil.sh/cvm/tinfoil-inference-v$version.initrd"
+
+      - name: Measure
+        run: python3 scripts/measure.py ./boot-shim vmlinuz initrd manifest.json
+
+      - name: Hash the deployment
+        id: hash
+        run: echo "digest=sha256:$(sha256sum tinfoil-deployment.json | cut -d' ' -f1 | tee tinfoil.hash)" >> "$GITHUB_OUTPUT"
+
+      - uses: actions/attest@v3
+        with:
+          subject-name: tinfoil-deployment.json
+          subject-digest: ${{ steps.hash.outputs.digest }}
+          predicate-type: https://tinfoil.sh/predicate/snp-tdx-multiplatform/v1
+          predicate-path: tinfoil-deployment.json
+
+      - name: Publish
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          gh release create "$GITHUB_REF_NAME" --verify-tag --latest=false \
+            --title "$GITHUB_REF_NAME" \
+            --notes "boot-shim measured deployment for CVM image v${CVM_VERSION}. Not a workspace release, and not marked latest." \
+            tinfoil-deployment.json tinfoil.hash

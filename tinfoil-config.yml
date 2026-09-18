@@ -1,7 +1,6 @@
 cvm-version: 0.14.8
 cpus: 2
 memory: 8192
-gpus: 8
 
 networks:
   dev:
@@ -14,8 +13,6 @@ volumes:
 containers:
   - name: "workspace"
     image: "ghcr.io/tinfoilsh/confidential-ubuntu-tinfoil-test@sha256:0000000000000000000000000000000000000000000000000000000000000000" # rewritten at release
-    runtime: nvidia
-    gpus: all
     restart: on-failure
     cvm_admin: true
     stop_signal: SIGRTMIN+3
